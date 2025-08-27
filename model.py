@@ -619,56 +619,55 @@ class DeepDrug_Container(LightningModule):
         
             return loss
 
-        def validation_step(self, batch, batch_idx):
-            (entry1_data, entry2_data), y = batch
-            y_out = self(batch)
+    def validation_step(self, batch, batch_idx):
+        (entry1_data, entry2_data), y = batch
+        y_out = self(batch)
+        
+        # chọn loss theo task
+        if self.task_type in ["multi_classification", "multiclass"]:
+            loss = self.loss_func(y_out, y.reshape(-1))
+        elif self.task_type in ["binary", "binary_classification"]:
+            loss = self.loss_func(y_out, y.float())
+        elif self.task_type in ["multilabel_classification", "multilabel"]:
+            loss = self.loss_func(y_out, y.float())
+        else:  # regression
+            loss = self.loss_func(y_out, y)
+        
+        self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        
+        # gom output
+        if not hasattr(self, "val_outputs"):
+            self.val_outputs = []
+        self.val_outputs.append({
+            "loss": loss,
+            "preds": y_out.detach(),
+            "targets": y.detach()
+        })
+        return loss 
+    def test_step(self, batch, batch_idx):
+        (entry1_data, entry2_data), y = batch
+        y_out = self(batch)
         
             # chọn loss theo task
-            if self.task_type in ["multi_classification", "multiclass"]:
-                loss = self.loss_func(y_out, y.reshape(-1))
-            elif self.task_type in ["binary", "binary_classification"]:
-                loss = self.loss_func(y_out, y.float())
-            elif self.task_type in ["multilabel_classification", "multilabel"]:
-                loss = self.loss_func(y_out, y.float())
-            else:  # regression
-                loss = self.loss_func(y_out, y)
+        if self.task_type in ["multi_classification", "multiclass"]:
+            loss = self.loss_func(y_out, y.reshape(-1))
+        elif self.task_type in ["binary", "binary_classification"]:
+            loss = self.loss_func(y_out, y.float())
+        elif self.task_type in ["multilabel_classification", "multilabel"]:
+            loss = self.loss_func(y_out, y.float())
+        else:  # regression
+            loss = self.loss_func(y_out, y)
         
-            self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
         
-            # gom output
-            if not hasattr(self, "val_outputs"):
-                self.val_outputs = []
-            self.val_outputs.append({
-                "loss": loss,
-                "preds": y_out.detach(),
-                "targets": y.detach()
-            })
-            return loss  
-
-        def test_step(self, batch, batch_idx):
-            (entry1_data, entry2_data), y = batch
-            y_out = self(batch)
-        
-            # chọn loss theo task
-            if self.task_type in ["multi_classification", "multiclass"]:
-                loss = self.loss_func(y_out, y.reshape(-1))
-            elif self.task_type in ["binary", "binary_classification"]:
-                loss = self.loss_func(y_out, y.float())
-            elif self.task_type in ["multilabel_classification", "multilabel"]:
-                loss = self.loss_func(y_out, y.float())
-            else:  # regression
-                loss = self.loss_func(y_out, y)
-        
-            self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
-        
-            if not hasattr(self, "test_outputs"):
-                self.test_outputs = []
-            self.test_outputs.append({
-                "loss": loss,
-                "preds": y_out.detach(),
-                "targets": y.detach()
-            })
-            return loss
+        if not hasattr(self, "test_outputs"):
+            self.test_outputs = []
+        self.test_outputs.append({
+            "loss": loss,
+            "preds": y_out.detach(),
+            "targets": y.detach()
+        })
+        return loss
 
 
     def on_train_epoch_end(self):
