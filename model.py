@@ -648,20 +648,40 @@ class DeepDrug_Container(LightningModule):
                  on_epoch=True, sync_dist=True)
         return_dict = {'y_out':t2np(y_out),'y':t2np(y)} 
         return return_dict 
+    def training_step(self, batch, batch_idx):
+        loss, preds, targets = self.shared_step(batch, batch_idx)
+    
+        # Lưu outputs vào self để gom lại cho cả epoch
+        if not hasattr(self, "epoch_outputs"):
+            self.epoch_outputs = []
+        self.epoch_outputs.append({"loss": loss, "preds": preds, "targets": targets})
+    
+        return loss
 
-    def training_epoch_end(self,outputs):
-        y_out  = np.concatenate([x['y_out'] for x in outputs])
-        y  = np.concatenate([x['y'] for x in outputs])
 
-
-            
-        metric_dict = self.cal_metrics_on_epoch_end(y,y_out,'trn',)
+    def on_train_epoch_end(self):
+        # gom outputs đã lưu trong epoch
+        outputs = self.epoch_outputs
+    
+        y_out = np.concatenate([x["preds"].detach().cpu().numpy() for x in outputs])
+        y = np.concatenate([x["targets"].detach().cpu().numpy() for x in outputs])
+    
+        # tính metrics
+        metric_dict = self.cal_metrics_on_epoch_end(y, y_out, "trn")
+    
         if self.my_logging:
-            self.logger.log_metrics(keep_scalar_func(metric_dict,prefix='epoch_trn'))
-        try: self.epoch_metrics.train.pop(-1)
-        except: pass
+            self.logger.log_metrics(keep_scalar_func(metric_dict, prefix="epoch_trn"))
+    
+        # reset metrics cũ (nếu có)
+        try:
+            self.epoch_metrics.train.pop(-1)
+        except:
+            pass
+    
         self.epoch_metrics.train.append(metric_dict)
-
+    
+        # clear outputs cho epoch sau
+        self.epoch_outputs = []
 
 
     def validation_epoch_end(self,outputs):
