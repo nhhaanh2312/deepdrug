@@ -589,35 +589,35 @@ class DeepDrug_Container(LightningModule):
     def forward(self,batch) :
         (entry1_data,entry2_data),y  = batch
         return self.model(entry1_data,entry2_data)
-        def training_step(self, batch, batch_idx):
-            (entry1_data, entry2_data), y = batch
-            y_out = self(batch)
+    def training_step(self, batch, batch_idx):
+        (entry1_data, entry2_data), y = batch
+        y_out = self(batch)
         
             # chọn loss theo task
-            if self.task_type in ["multi_classification", "multiclass"]:
-                loss = self.loss_func(y_out, y.reshape(-1))
-            elif self.task_type in ["binary", "binary_classification"]:
-                loss = self.loss_func(y_out, y.float())
-            elif self.task_type in ["multilabel_classification", "multilabel"]:
-                loss = self.loss_func(y_out, y.float())
-            else:  # regression
-                loss = self.loss_func(y_out, y)
+        if self.task_type in ["multi_classification", "multiclass"]:
+            loss = self.loss_func(y_out, y.reshape(-1))
+        elif self.task_type in ["binary", "binary_classification"]:
+            loss = self.loss_func(y_out, y.float())
+        elif self.task_type in ["multilabel_classification", "multilabel"]:
+            loss = self.loss_func(y_out, y.float())
+        else:  # regression
+            loss = self.loss_func(y_out, y)
         
             # log loss
-            self.log("train_loss", loss, prog_bar=False, on_step=False, on_epoch=True)
-            lr = iter(self.my_optimizers.param_groups).__next__()["lr"]
-            self.log("lr", np.round(lr, 6), prog_bar=True, on_step=True, on_epoch=False)
+        self.log("train_loss", loss, prog_bar=False, on_step=False, on_epoch=True)
+        lr = iter(self.my_optimizers.param_groups).__next__()["lr"]
+        self.log("lr", np.round(lr, 6), prog_bar=True, on_step=True, on_epoch=False)
         
             # lưu output để gom lại cuối epoch
-            if not hasattr(self, "epoch_outputs"):
-                self.epoch_outputs = []
-            self.epoch_outputs.append({
-                "loss": loss,
-                "preds": y_out.detach(),
-                "targets": y.detach()
-            })
+        if not hasattr(self, "epoch_outputs"):
+            self.epoch_outputs = []
+        self.epoch_outputs.append({
+            "loss": loss,
+            "preds": y_out.detach(),
+            "targets": y.detach()
+        })
         
-            return loss
+        return loss
 
     def validation_step(self, batch, batch_idx):
         (entry1_data, entry2_data), y = batch
