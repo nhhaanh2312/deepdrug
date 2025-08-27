@@ -589,74 +589,86 @@ class DeepDrug_Container(LightningModule):
     def forward(self,batch) :
         (entry1_data,entry2_data),y  = batch
         return self.model(entry1_data,entry2_data)
-    def training_step(self, batch, batch_idx):
-        (entry1_data,entry2_data),y  = batch
-        y_out = self(batch)
-        if self.task_type in ['multi_classification','multiclass',]:
-            loss = self.loss_func(y_out, y.reshape(-1))
-        elif self.task_type in ['binary','binary_classification']:
-            loss = self.loss_func(y_out, y.float())
-        elif self.task_type in ['multilabel_classification','multilabel',]:
-            loss = self.loss_func(y_out, y.float())
-        else:
-            loss = self.loss_func(y_out, y)
+        def training_step(self, batch, batch_idx):
+            (entry1_data, entry2_data), y = batch
+            y_out = self(batch)
+        
+            # chọn loss theo task
+            if self.task_type in ["multi_classification", "multiclass"]:
+                loss = self.loss_func(y_out, y.reshape(-1))
+            elif self.task_type in ["binary", "binary_classification"]:
+                loss = self.loss_func(y_out, y.float())
+            elif self.task_type in ["multilabel_classification", "multilabel"]:
+                loss = self.loss_func(y_out, y.float())
+            else:  # regression
+                loss = self.loss_func(y_out, y)
+        
+            # log loss
+            self.log("train_loss", loss, prog_bar=False, on_step=False, on_epoch=True)
+            lr = iter(self.my_optimizers.param_groups).__next__()["lr"]
+            self.log("lr", np.round(lr, 6), prog_bar=True, on_step=True, on_epoch=False)
+        
+            # lưu output để gom lại cuối epoch
+            if not hasattr(self, "epoch_outputs"):
+                self.epoch_outputs = []
+            self.epoch_outputs.append({
+                "loss": loss,
+                "preds": y_out.detach(),
+                "targets": y.detach()
+            })
+        
+            return loss
 
-        # print('\nloss',loss,y_out.shape,y.shape,y_out.dtype,y.dtype,y_out[:2],y[:2])
-        self.log('train_loss', loss, prog_bar=False, on_step=False,
-                 on_epoch=True)
-        lr = iter(self.my_optimizers.param_groups).__next__()['lr']
-        self.log('lr', np.round(lr,6), prog_bar=True, on_step=True,
-                 on_epoch=False)
+        def validation_step(self, batch, batch_idx):
+            (entry1_data, entry2_data), y = batch
+            y_out = self(batch)
+        
+            # chọn loss theo task
+            if self.task_type in ["multi_classification", "multiclass"]:
+                loss = self.loss_func(y_out, y.reshape(-1))
+            elif self.task_type in ["binary", "binary_classification"]:
+                loss = self.loss_func(y_out, y.float())
+            elif self.task_type in ["multilabel_classification", "multilabel"]:
+                loss = self.loss_func(y_out, y.float())
+            else:  # regression
+                loss = self.loss_func(y_out, y)
+        
+            self.log("val_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        
+            # gom output
+            if not hasattr(self, "val_outputs"):
+                self.val_outputs = []
+            self.val_outputs.append({
+                "loss": loss,
+                "preds": y_out.detach(),
+                "targets": y.detach()
+            })
+            return loss  
 
-
-        return_dict = {'loss':loss,'y_out':t2np(y_out),'y':t2np(y)}
-
-        return return_dict 
-
-    def validation_step(self, batch, batch_idx):
-
-        (entry1_data,entry2_data),y  = batch
-        y_out = self(batch)
-        if self.task_type in ['multi_classification','multiclass',]:
-            loss = self.loss_func(y_out, y.reshape(-1))
-        elif self.task_type in ['binary','binary_classification']:
-            loss = self.loss_func(y_out, y.float())
-        elif self.task_type in ['multilabel_classification','multilabel',]:
-            loss = self.loss_func(y_out, y.float())
-        else:
-            loss = self.loss_func(y_out, y)
-
-        self.log('val_loss', loss, prog_bar=True, on_step=False,
-                 on_epoch=True, sync_dist=True)
-
-        # return loss 
-        return_dict = {'y_out':t2np(y_out),'y':t2np(y)}
-        return return_dict  
-
-    def test_step(self, batch, batch_idx):
-        (entry1_data,entry2_data),y  = batch
-        y_out = self(batch)
-        if self.task_type in ['multi_classification','multiclass',]:
-            loss = self.loss_func(y_out, y.reshape(-1))
-        elif self.task_type in ['binary','binary_classification']:
-            loss = self.loss_func(y_out, y.float())
-        elif self.task_type in ['multilabel_classification','multilabel',]:
-            loss = self.loss_func(y_out, y.float())
-        else:
-            loss = self.loss_func(y_out, y)
-        self.log('test_loss', loss, prog_bar=False, on_step=False,
-                 on_epoch=True, sync_dist=True)
-        return_dict = {'y_out':t2np(y_out),'y':t2np(y)} 
-        return return_dict 
-    def training_step(self, batch, batch_idx):
-        loss, preds, targets = self.shared_step(batch, batch_idx)
-    
-        # Lưu outputs vào self để gom lại cho cả epoch
-        if not hasattr(self, "epoch_outputs"):
-            self.epoch_outputs = []
-        self.epoch_outputs.append({"loss": loss, "preds": preds, "targets": targets})
-    
-        return loss
+        def test_step(self, batch, batch_idx):
+            (entry1_data, entry2_data), y = batch
+            y_out = self(batch)
+        
+            # chọn loss theo task
+            if self.task_type in ["multi_classification", "multiclass"]:
+                loss = self.loss_func(y_out, y.reshape(-1))
+            elif self.task_type in ["binary", "binary_classification"]:
+                loss = self.loss_func(y_out, y.float())
+            elif self.task_type in ["multilabel_classification", "multilabel"]:
+                loss = self.loss_func(y_out, y.float())
+            else:  # regression
+                loss = self.loss_func(y_out, y)
+        
+            self.log("test_loss", loss, prog_bar=True, on_step=False, on_epoch=True)
+        
+            if not hasattr(self, "test_outputs"):
+                self.test_outputs = []
+            self.test_outputs.append({
+                "loss": loss,
+                "preds": y_out.detach(),
+                "targets": y.detach()
+            })
+            return loss
 
 
     def on_train_epoch_end(self):
@@ -684,43 +696,45 @@ class DeepDrug_Container(LightningModule):
         self.epoch_outputs = []
 
 
-    def validation_epoch_end(self,outputs):
-        y_out  = np.concatenate([x['y_out'] for x in outputs])
-        y  = np.concatenate([x['y'] for x in outputs])
-        metric_dict = self.cal_metrics_on_epoch_end(y,y_out,'val')
-        if self.task_type in ['binary','multiclass','multilabel']:
-            self.log('val_epoch_F1', metric_dict['F1'], prog_bar=False, on_step=False,on_epoch=True)
-            self.log('val_epoch_auPRC', metric_dict['auPRC'], prog_bar=False, on_step=False,on_epoch=True)
-        elif self.task_type in ['regression',]:
-            self.log('val_epoch_MSE', metric_dict['mse'], prog_bar=False, on_step=False,on_epoch=True)
-
-        try: self.epoch_metrics.valid.pop(-1)
-        except: pass
-        self.epoch_metrics.valid.append(metric_dict)
+    def on_validation_epoch_end(self):
+        outputs = self.val_outputs
+    
+        y_out = np.concatenate([x["preds"].cpu().numpy() for x in outputs])
+        y = np.concatenate([x["targets"].cpu().numpy() for x in outputs])
+    
+        metric_dict = self.cal_metrics_on_epoch_end(y, y_out, "val")
+    
         if self.my_logging:
-            self.logger.log_metrics(keep_scalar_func(metric_dict,prefix='epoch_val'))
+            self.logger.log_metrics(keep_scalar_func(metric_dict, prefix="epoch_val"))
+    
+        try:
+            self.epoch_metrics.val.pop(-1)
+        except:
+            pass
+    
+        self.epoch_metrics.val.append(metric_dict)
+        self.val_outputs = []  # reset
 
-        if (len(self.epoch_metrics.train)>0) :
-            self.print_metrics_on_epoch_end(self.epoch_metrics.train[-1])
-        self.print_metrics_on_epoch_end(self.epoch_metrics.valid[-1])
-          
-        self.my_schedulers.step(metric_dict[self.scheduler_ReduceLROnPlateau_tracking])  #'mse','F1'
 
-
-
-    def test_epoch_end(self,outputs):
-        y_out  = np.concatenate([x['y_out'] for x in outputs])
-        y  = np.concatenate([x['y'] for x in outputs])
-        metric_dict = self.cal_metrics_on_epoch_end(y,y_out,'tst')
-        
+    def on_test_epoch_end(self):
+        outputs = self.test_outputs
+    
+        y_out = np.concatenate([x["preds"].cpu().numpy() for x in outputs])
+        y = np.concatenate([x["targets"].cpu().numpy() for x in outputs])
+    
+        metric_dict = self.cal_metrics_on_epoch_end(y, y_out, "test")
+    
         if self.my_logging:
-            self.logger.log_metrics(keep_scalar_func(metric_dict,prefix='epoch_tst'))
-
-        try: self.epoch_metrics.test.pop(-1)
-        except: pass
+            self.logger.log_metrics(keep_scalar_func(metric_dict, prefix="epoch_test"))
+    
+        try:
+            self.epoch_metrics.test.pop(-1)
+        except:
+            pass
+    
         self.epoch_metrics.test.append(metric_dict)
+        self.test_outputs = []  # reset
 
-        self.print_metrics_on_epoch_end(self.epoch_metrics.test[-1])
 
 
 
